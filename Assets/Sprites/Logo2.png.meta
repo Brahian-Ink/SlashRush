@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 9718a6a52979139409fb22bfc702f504
+guid: 6580caae327bd364db6dedfcdb1ddb06
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 8152744455403509152
-    second: BackgroundMenu_0
+      213: 5989905459889153336
+    second: Logo2_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -37,7 +37,7 @@ TextureImporter:
   maxTextureSize: 2048
   textureSettings:
     serializedVersion: 2
-    filterMode: 0
+    filterMode: 1
     aniso: 1
     mipBias: 0
     wrapU: 1
@@ -96,17 +96,30 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: BackgroundMenu_0
+      name: Logo2_0
       rect:
         serializedVersion: 2
-        x: 0
+        x: 4
         y: 0
-        width: 128
-        height: 128
+        width: 60
+        height: 63
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -115,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 0a59cd813ed542170800000000000000
-      internalID: 8152744455403509152
+      spriteID: 835add6a74b602350800000000000000
+      internalID: 5989905459889153336
       vertices: []
       indices: 
       edges: []
@@ -134,8 +147,7 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable:
-      BackgroundMenu_0: 8152744455403509152
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -32,7 +32,7 @@ public class GameManager : MonoBehaviour
     // ---------------------------------------------------------
     [Header("Wave System")]
     public int currentWave = 1;
-    public int enemiesToSpawn = 3;
+    public int enemiesToSpawn = 2;
     public int enemiesAlive = 0;
 
     [Header("Timer")]
