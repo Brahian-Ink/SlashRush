@@ -2127,7 +2127,6 @@ MonoBehaviour:
   offsetRight: 0.08
   offsetLeft: 0.07
   frontOrder: 5
-  backOrder: 0
   knifeIdleSprite: {fileID: 6764707825347140516, guid: 9e03d9d5baec1a44e95f6f5e03c015ba, type: 3}
   knifeAttackSprite: {fileID: 7541577279504876139, guid: 88f2f344438535f419fee09d6a0eff1f, type: 3}
   slashHitbox: {fileID: 535323244}
@@ -2141,7 +2140,10 @@ MonoBehaviour:
   powerUpSFX: {fileID: 8300000, guid: f11582d5a5257ee408ff81d0e1354893, type: 3}
   ghostPrefab: {fileID: 5236475227218995039, guid: ad201b01bb3653f4593168566effee6f, type: 3}
   ghostSpawnPoint: {fileID: 1390485862}
-  camShake: {fileID: 0}
+  slasherTimeScale: 0.6
+  teenFearSlow: 0.5
+  buffRemaining: 0
+  buffRemaining01: 0
 --- !u!70 &366822567
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -7211,7 +7213,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   score: 0
-  baseKillPoints: 100
+  baseKillPoints: 1000
   comboBonusPerKill: 50
   comboWindow: 1
   comboCount: 0

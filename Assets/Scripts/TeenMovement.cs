@@ -6,6 +6,7 @@ public class TeenMovement : MonoBehaviour
     public float moveSpeed = 2f;
     public float minChangeDirTime = 1f;
     public float maxChangeDirTime = 3f;
+    public static float GlobalSpeedMultiplier = 1f;
 
     [Header("Knockback")]
     public float knockbackDrag = 5f; 
@@ -14,6 +15,14 @@ public class TeenMovement : MonoBehaviour
     Vector2 moveDir;
     float changeDirTimer;
     SpriteRenderer sr;
+
+    [Header("Fear FX")]
+    public float fearPulseSpeed = 2f;      // qué tan lento pulsa
+    public float fearMinAlpha = 0.6f;      // alpha mínimo
+    public float fearMaxAlpha = 1f;        // alpha normal
+
+
+    Vector3 originalLocalPos;
 
     bool isKnockback = false;
     Vector2 knockbackVelocity;
@@ -28,6 +37,7 @@ public class TeenMovement : MonoBehaviour
 
     void OnEnable()
     {
+        originalLocalPos = transform.localPosition;
         PickRandomDirection();
         ResetChangeDirTimer();
     }
@@ -58,6 +68,7 @@ public class TeenMovement : MonoBehaviour
             }
         }
         UpdateLookDirection();
+        ApplyFearPulse();
 
     }
 
@@ -69,7 +80,9 @@ public class TeenMovement : MonoBehaviour
         }
         else if (canMove)
         {
-            rb.linearVelocity = moveDir * moveSpeed;
+            float finalSpeed = moveSpeed * GlobalSpeedMultiplier / Time.timeScale;
+            rb.linearVelocity = moveDir * finalSpeed;
+
         }
         else
         {
@@ -125,5 +138,21 @@ public class TeenMovement : MonoBehaviour
         else if (dir.x > 0.05f)
             sr.flipX = false;
     }
+    void ApplyFearPulse()
+    {
+        if (GlobalSpeedMultiplier < 1f && canMove)
+        {
+            float pulse = Mathf.Sin(Time.unscaledTime * fearPulseSpeed) * 0.5f + 0.5f;
+            float a = Mathf.Lerp(fearMinAlpha, fearMaxAlpha, pulse);
+            sr.color = new Color(1f, 1f, 1f, a);
+        }
+        else
+        {
+            sr.color = Color.white;
+        }
+    }
+
+
+
 
 }

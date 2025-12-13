@@ -347,3 +347,5 @@ MonoBehaviour:
   minChangeDirTime: 1
   maxChangeDirTime: 3
   knockbackDrag: 1
+  fearShakeIntensity: 0.02
+  fearPulseSpeed: 12

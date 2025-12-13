@@ -25,7 +25,6 @@ public class PlayerController : MonoBehaviour
     public float offsetRight = 0.08f;
     public float offsetLeft = 0.07f;
     public int frontOrder = 5;
-    public int backOrder = 0;
 
     public Sprite knifeIdleSprite;
     public Sprite knifeAttackSprite;
@@ -36,21 +35,32 @@ public class PlayerController : MonoBehaviour
     public float slashAngle = 80f;
 
     // ---------------------------------------------------------
-    // POWER-UP
+    // POWER-UP (SLASHER MODE)
     // ---------------------------------------------------------
     [Header("Power Up")]
     public bool isBuffed = false;
     public float buffDuration = 5f;
     public float buffMoveMultiplier = 1.4f;
     public float buffAttackMultiplier = 0.7f;
+
+    [Header("Audio")]
     public AudioSource audioSource;
     public AudioClip powerUpSFX;
+
+    [Header("Ghost FX")]
     public GameObject ghostPrefab;
     public Transform ghostSpawnPoint;
 
-    [Header("Camera FX")]
-    public CameraShake camShake;
+    [Header("Slasher Slow Motion")]
+    public float slasherTimeScale = 0.6f;   // slow global
+    public float teenFearSlow = 0.5f;       // extra slow teens
+    public float buffRemaining;             // UI
+    public float buffRemaining01;           // UI 0..1
 
+    float originalTimeScale = 1f;
+    float originalFixedDeltaTime = 0.02f;
+
+    // handles coroutines
     Coroutine buffRoutineHandle;
     Coroutine blinkRoutineHandle;
     Coroutine ghostRoutineHandle;
@@ -59,6 +69,11 @@ public class PlayerController : MonoBehaviour
     {
         baseMoveSpeed = moveSpeed;
         baseAttackDuration = attackDuration;
+
+        // seguridad
+        if (slashHitbox != null) slashHitbox.SetActive(false);
+        if (weaponSR != null && knifeIdleSprite != null) weaponSR.sprite = knifeIdleSprite;
+        if (weapon != null) weapon.localRotation = Quaternion.identity;
     }
 
     // ---------------------------------------------------------
@@ -95,7 +110,9 @@ public class PlayerController : MonoBehaviour
             movement = movement.normalized;
         }
         else
+        {
             movement = Vector2.zero;
+        }
     }
 
     void HandleMouseLook()
@@ -136,30 +153,28 @@ public class PlayerController : MonoBehaviour
         weapon.localPosition = pos;
 
         weapon.localRotation = Quaternion.identity;
+
+        // detrás pero NO 0 (como pediste): cuando mira arriba va a order 2
         weaponSR.sortingOrder = lookingUp ? 2 : frontOrder;
 
-
-        if (!isAttacking)
+        if (!isAttacking && knifeIdleSprite != null)
             weaponSR.sprite = knifeIdleSprite;
     }
 
     // ---------------------------------------------------------
-    // ATAQUE (seguro, no desaparece el arma)
+    // ATAQUE
     // ---------------------------------------------------------
     IEnumerator AttackRoutine()
     {
         isAttacking = true;
 
-        float usedDuration = isBuffed
-            ? baseAttackDuration * buffAttackMultiplier
-            : baseAttackDuration;
-
+        float usedDuration = isBuffed ? baseAttackDuration * buffAttackMultiplier : baseAttackDuration;
         if (usedDuration < 0.06f) usedDuration = 0.06f;
 
         float half = usedDuration * 0.5f;
 
-        weaponSR.sprite = knifeAttackSprite;
-        slashHitbox.SetActive(true);
+        if (knifeAttackSprite != null) weaponSR.sprite = knifeAttackSprite;
+        if (slashHitbox != null) slashHitbox.SetActive(true);
 
         float elapsed = 0f;
         float startAngle = 0f;
@@ -182,9 +197,11 @@ public class PlayerController : MonoBehaviour
             yield return null;
         }
 
-        slashHitbox.SetActive(false);
+        if (slashHitbox != null) slashHitbox.SetActive(false);
         weapon.localRotation = Quaternion.identity;
-        weaponSR.sprite = knifeIdleSprite;
+
+        if (knifeIdleSprite != null) weaponSR.sprite = knifeIdleSprite;
+
         isAttacking = false;
     }
 
@@ -193,6 +210,11 @@ public class PlayerController : MonoBehaviour
     // ---------------------------------------------------------
     public void ActivatePowerUp()
     {
+        // si estaba atacando, reseteo limpio para evitar estados raros
+        if (slashHitbox != null) slashHitbox.SetActive(false);
+        if (weapon != null) weapon.localRotation = Quaternion.identity;
+        isAttacking = false;
+
         if (buffRoutineHandle != null)
             StopCoroutine(buffRoutineHandle);
 
@@ -206,71 +228,96 @@ public class PlayerController : MonoBehaviour
         if (audioSource && powerUpSFX)
             audioSource.PlayOneShot(powerUpSFX);
 
-        moveSpeed = baseMoveSpeed * buffMoveMultiplier;
+        // activar slow motion global
+        originalTimeScale = Time.timeScale;
+        originalFixedDeltaTime = Time.fixedDeltaTime;
+
+        Time.timeScale = slasherTimeScale;
+        Time.fixedDeltaTime = 0.02f * Time.timeScale;
+
+        // slow extra para teens
+        TeenMovement.GlobalSpeedMultiplier = teenFearSlow;
+
+        // buff player compensando timeScale
+        moveSpeed = baseMoveSpeed * buffMoveMultiplier / Time.timeScale;
 
         float poweredAttack = baseAttackDuration * buffAttackMultiplier;
         if (poweredAttack < 0.06f) poweredAttack = 0.06f;
         attackDuration = poweredAttack;
 
-        if (blinkRoutineHandle != null)
-            StopCoroutine(blinkRoutineHandle);
-        blinkRoutineHandle = StartCoroutine(BlinkRed());
+        // FX realtime (no afectados por timeScale)
+        if (blinkRoutineHandle != null) StopCoroutine(blinkRoutineHandle);
+        blinkRoutineHandle = StartCoroutine(BlinkRedRealtime());
 
-        if (ghostRoutineHandle != null)
-            StopCoroutine(ghostRoutineHandle);
-        ghostRoutineHandle = StartCoroutine(GhostTrail());
+        if (ghostRoutineHandle != null) StopCoroutine(ghostRoutineHandle);
+        ghostRoutineHandle = StartCoroutine(GhostTrailRealtime());
 
-        if (camShake != null)
-            camShake.StartContinuousShake(0.05f);
+        // timer REAL
+        buffRemaining = buffDuration;
 
-        float t = 0f;
-        while (t < buffDuration)
+        while (buffRemaining > 0f)
         {
-            t += Time.deltaTime;
+            buffRemaining -= Time.unscaledDeltaTime;
+            buffRemaining01 = Mathf.Clamp01(buffRemaining / buffDuration);
             yield return null;
         }
 
+        // restaurar todo
+        TeenMovement.GlobalSpeedMultiplier = 1f;
+
+        Time.timeScale = originalTimeScale;
+        Time.fixedDeltaTime = originalFixedDeltaTime;
+
         moveSpeed = baseMoveSpeed;
         attackDuration = baseAttackDuration;
+
         bodySR.color = Color.white;
         isBuffed = false;
 
-        if (camShake != null)
-            camShake.StopContinuousShake();
+        buffRemaining = 0f;
+        buffRemaining01 = 0f;
     }
 
     // ---------------------------------------------------------
-    // EFECTOS VISUALES
+    // EFECTOS VISUALES (Realtime)
     // ---------------------------------------------------------
-    IEnumerator BlinkRed()
+    IEnumerator BlinkRedRealtime()
     {
         while (isBuffed)
         {
             bodySR.color = Color.red;
-            yield return new WaitForSeconds(0.05f);
+            yield return new WaitForSecondsRealtime(0.05f);
+
             bodySR.color = Color.white;
-            yield return new WaitForSeconds(0.05f);
+            yield return new WaitForSecondsRealtime(0.05f);
         }
+
+        bodySR.color = Color.white;
     }
 
-    IEnumerator GhostTrail()
+    IEnumerator GhostTrailRealtime()
     {
         while (isBuffed)
         {
-            if (ghostPrefab != null)
+            if (ghostPrefab != null && ghostSpawnPoint != null)
             {
                 GameObject g = Instantiate(ghostPrefab, ghostSpawnPoint.position, Quaternion.identity);
                 SpriteRenderer gsr = g.GetComponent<SpriteRenderer>();
-                gsr.sprite = bodySR.sprite;
-                gsr.flipX = bodySR.flipX;
-                gsr.color = new Color(1f, 0f, 0f, 0.4f);
+
+                if (gsr != null)
+                {
+                    gsr.sprite = bodySR.sprite;
+                    gsr.flipX = bodySR.flipX;
+                    gsr.color = new Color(1f, 0f, 0f, 0.4f);
+                }
+
                 g.transform.localScale = transform.localScale;
 
-                StartCoroutine(FadeGhost(gsr));
+                if (gsr != null) StartCoroutine(FadeGhost(gsr));
                 Destroy(g, 0.25f);
             }
 
-            yield return new WaitForSeconds(0.04f);
+            yield return new WaitForSecondsRealtime(0.04f);
         }
     }
 
@@ -279,7 +326,7 @@ public class PlayerController : MonoBehaviour
         float a = sr.color.a;
         while (a > 0)
         {
-            a -= Time.deltaTime * 8f;
+            a -= Time.unscaledDeltaTime * 8f;
             sr.color = new Color(1f, 0f, 0f, a);
             yield return null;
         }
