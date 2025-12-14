@@ -15,7 +15,7 @@ public class GameManager : MonoBehaviour
     [Header("Score")]
     public int score;
     public int baseKillPoints = 100;
-    public int comboBonusPerKill = 50;
+    public int comboBonusFixed = 50; // bonus fijo por combo
     private int lastScoreMilestone = 0;
 
     [Header("Combo")]
@@ -25,7 +25,7 @@ public class GameManager : MonoBehaviour
 
     // PowerUp thresholds
     int nextBuffAt = 5000;
-    public PlayerController player;   
+    public PlayerController player;
 
     // ---------------------------------------------------------
     // WAVE + TIMER
@@ -37,12 +37,19 @@ public class GameManager : MonoBehaviour
 
     [Header("Timer")]
     public float waveTime = 60f;
+    public float maxTime = 60f;
     float remainingTime;
-    public float timeDecreaseMultiplier = 40f;
+    public float timeDecreaseMultiplier = 0.25f;
     private int lastAnnouncedSecond = -1;
     public AudioClip countdownBeep;
-
     bool waveRunning = false;
+
+    // ---------------------------------------------------------
+    // TIME BONUS POPUP
+    // ---------------------------------------------------------
+    [Header("Time Bonus Popup")]
+    public GameObject timePopupPrefab;
+    public Vector3 popupOffset = new Vector3(0f, 1.4f, 0f);
 
     // ---------------------------------------------------------
     // SPAWNING
@@ -50,6 +57,14 @@ public class GameManager : MonoBehaviour
     [Header("Spawning")]
     public GameObject teenPrefab;
     public Transform[] spawnPoints;
+
+    [Header("Spawn Flow")]
+    public float spawnDelayMin = 0.15f;
+    public float spawnDelayMax = 0.6f;
+
+    [Header("Anti-Spawn Camp")]
+    public float spawnBlockRadius = 2.5f;
+    public int spawnPickTries = 20;
 
     // ---------------------------------------------------------
     // UI
@@ -63,7 +78,7 @@ public class GameManager : MonoBehaviour
     public TMP_Text pressEnterText;
 
     // ---------------------------------------------------------
-    // FX CAMERA + OVERLAY
+    // FX
     // ---------------------------------------------------------
     [Header("FX")]
     public ComboPopup comboPopup;
@@ -82,6 +97,7 @@ public class GameManager : MonoBehaviour
     // INTERNAL
     // ---------------------------------------------------------
     bool isGameOver = false;
+    Coroutine spawnRoutineHandle;
 
     // ---------------------------------------------------------
     // INITIALIZATION
@@ -102,11 +118,13 @@ public class GameManager : MonoBehaviour
             redOverlay.color = c;
         }
 
-        gameOverText.gameObject.SetActive(false);
-        highScoreText.gameObject.SetActive(false);
-        pressEnterText.gameObject.SetActive(false);
+        if (gameOverText) gameOverText.gameObject.SetActive(false);
+        if (highScoreText) highScoreText.gameObject.SetActive(false);
+        if (pressEnterText) pressEnterText.gameObject.SetActive(false);
 
-        remainingTime = waveTime;
+        remainingTime = Mathf.Min(waveTime, maxTime);
+        UpdateTimerUI();
+        UpdateScoreUI();
 
         StartCoroutine(StartWave());
     }
@@ -117,14 +135,21 @@ public class GameManager : MonoBehaviour
     void Update()
     {
         HandleComboTimer();
-        
+
+        // ESC -> menú
         if (Input.GetKeyDown(KeyCode.Escape))
         {
-            Time.timeScale = 1f; // por si estabas en game over
-            UnityEngine.SceneManagement.SceneManager.LoadScene("Menu");
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = 0.02f;
+
+            if (player != null)
+                player.ForceStopSlasherMode();
+
+            SceneManager.LoadScene("Menu");
             return;
         }
-        // Restart con ENTER
+
+        // ENTER -> restart en game over
         if (isGameOver && Input.GetKeyDown(KeyCode.Return))
         {
             RestartGame();
@@ -133,12 +158,9 @@ public class GameManager : MonoBehaviour
 
         if (!waveRunning) return;
 
-        //-------------------------------------
         // TIMER
-        //-------------------------------------
         float speedFactor = 1f + (currentWave - 1) * timeDecreaseMultiplier;
         remainingTime -= Time.deltaTime * speedFactor;
-
         UpdateTimerUI();
 
         int sec = Mathf.CeilToInt(remainingTime);
@@ -154,9 +176,7 @@ public class GameManager : MonoBehaviour
             }
 
             if (sec <= 0)
-            {
                 GameOver();
-            }
         }
     }
 
@@ -167,48 +187,126 @@ public class GameManager : MonoBehaviour
     {
         waveRunning = false;
 
-        waveText.gameObject.SetActive(true);
-        waveText.text = "WAVE " + currentWave;
+        if (waveText)
+        {
+            waveText.gameObject.SetActive(true);
+            waveText.text = "WAVE " + currentWave;
+        }
 
         if (audioSource && waveStartClip)
             audioSource.PlayOneShot(waveStartClip);
 
-        yield return new WaitForSeconds(5f);
+        yield return new WaitForSeconds(2.5f);
 
-        waveText.gameObject.SetActive(false);
+        if (waveText) waveText.gameObject.SetActive(false);
 
         enemiesToSpawn = currentWave * 10;
         enemiesAlive = enemiesToSpawn;
 
-        SpawnWave();
+        // cancelar rutina anterior por seguridad
+        if (spawnRoutineHandle != null)
+            StopCoroutine(spawnRoutineHandle);
+
+        spawnRoutineHandle = StartCoroutine(SpawnWaveRoutine(enemiesToSpawn));
 
         waveRunning = true;
     }
 
-    void SpawnWave()
+    IEnumerator SpawnWaveRoutine(int count)
     {
-        for (int i = 0; i < enemiesToSpawn; i++)
+        for (int i = 0; i < count; i++)
         {
-            Transform p = spawnPoints[Random.Range(0, spawnPoints.Length)];
-            Instantiate(teenPrefab, p.position, Quaternion.identity);
+            Transform sp = GetSpawnPointAvoidingPlayer();
+            if (sp != null && teenPrefab != null)
+                Instantiate(teenPrefab, sp.position, Quaternion.identity);
+
+            float d = Random.Range(spawnDelayMin, spawnDelayMax);
+            yield return new WaitForSeconds(d);
         }
     }
+
+    Transform GetSpawnPointAvoidingPlayer()
+    {
+        if (spawnPoints == null || spawnPoints.Length == 0)
+            return null;
+
+        if (player == null)
+        {
+            Debug.LogWarning("GameManager: 'player' NO asignado. Anti-camp no funciona.");
+            return spawnPoints[Random.Range(0, spawnPoints.Length)];
+        }
+
+        Vector2 ppos = player.transform.position;
+
+        // 1) Buscar spawns válidos (fuera del radio)
+        int validCount = 0;
+        Transform best = null;
+        float bestDist = -1f;
+
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            Transform sp = spawnPoints[i];
+            if (sp == null) continue;
+
+            float dist = Vector2.Distance(sp.position, ppos);
+
+            // guardo el más lejano siempre (por si no hay válidos)
+            if (dist > bestDist)
+            {
+                bestDist = dist;
+                best = sp;
+            }
+
+            if (dist >= spawnBlockRadius)
+                validCount++;
+        }
+
+        // 2) Si hay válidos, elegimos uno válido random
+        if (validCount > 0)
+        {
+            int pick = Random.Range(0, validCount);
+            for (int i = 0; i < spawnPoints.Length; i++)
+            {
+                Transform sp = spawnPoints[i];
+                if (sp == null) continue;
+
+                float dist = Vector2.Distance(sp.position, ppos);
+                if (dist >= spawnBlockRadius)
+                {
+                    if (pick == 0) return sp;
+                    pick--;
+                }
+            }
+        }
+
+        // 3) Si NO hay válidos, spawnea en el MÁS LEJANO (anti-campeo total)
+        return best;
+    }
+
 
     // ---------------------------------------------------------
     // REGISTER KILL
     // ---------------------------------------------------------
     public void RegisterKill()
     {
-        //-----------------------------------------------------
         // COMBO
-        //-----------------------------------------------------
         if (comboTimer > 0f) comboCount++;
         else comboCount = 1;
 
         comboTimer = comboWindow;
 
-        int gained = baseKillPoints + comboBonusPerKill * (comboCount - 1);
+        int gained = baseKillPoints;
+        if (comboCount > 1)
+            gained += comboBonusFixed;
+
         score += gained;
+
+        // +5s solo en slasher mode (clamp a 60)
+        if (player != null && player.isBuffed)
+        {
+            AddTime(5f);
+            SpawnTimePopup("+5");
+        }
 
         UpdateScoreUI();
         comboPopup?.ShowCombo(comboCount);
@@ -218,17 +316,11 @@ public class GameManager : MonoBehaviour
 
         camShake?.Shake(0.08f, 0.06f);
 
-
-        //-----------------------------------------------------
-        // POWER UP CHECK
-        //-----------------------------------------------------
+        // POWER UP
         CheckPowerUp();
 
-        //-----------------------------------------------------
-        // WAVE CONTROL
-        //-----------------------------------------------------
+        // WAVE
         enemiesAlive--;
-
         if (enemiesAlive <= 0)
         {
             waveRunning = false;
@@ -242,17 +334,14 @@ public class GameManager : MonoBehaviour
     // ---------------------------------------------------------
     void CheckPowerUp()
     {
-        if (score >= nextBuffAt)
-        {
-            Debug.Log(">>> ACTIVANDO POWER-UP EN SCORE: " + score);
+        if (score < nextBuffAt) return;
 
-            if (player != null)
-                player.ActivatePowerUp();
-            else
-                Debug.LogWarning("Player no asignado en GameManager.");
+        if (player != null)
+            player.ActivatePowerUp();
+        else
+            Debug.LogWarning("Player no asignado en GameManager.");
 
-            nextBuffAt += 5000;
-        }
+        nextBuffAt += 5000;
     }
 
     // ---------------------------------------------------------
@@ -260,16 +349,34 @@ public class GameManager : MonoBehaviour
     // ---------------------------------------------------------
     void HandleComboTimer()
     {
-        if (comboCount > 0)
-        {
-            comboTimer -= Time.deltaTime;
+        if (comboCount <= 0) return;
 
-            if (comboTimer <= 0f)
-            {
-                comboCount = 0;
-                comboPopup?.ShowCombo(0);
-            }
+        comboTimer -= Time.deltaTime;
+        if (comboTimer <= 0f)
+        {
+            comboCount = 0;
+            comboPopup?.ShowCombo(0);
         }
+    }
+
+    // ---------------------------------------------------------
+    // TIME HELPERS
+    // ---------------------------------------------------------
+    public void AddTime(float seconds)
+    {
+        remainingTime = Mathf.Min(remainingTime + seconds, maxTime);
+        UpdateTimerUI();
+    }
+
+    void SpawnTimePopup(string txt)
+    {
+        if (!timePopupPrefab || player == null) return;
+
+        Vector3 pos = player.transform.position + popupOffset;
+        GameObject g = Instantiate(timePopupPrefab, pos, Quaternion.identity);
+
+        TMP_Text t = g.GetComponent<TMP_Text>();
+        if (t) t.text = txt;
     }
 
     // ---------------------------------------------------------
@@ -282,40 +389,66 @@ public class GameManager : MonoBehaviour
         isGameOver = true;
         waveRunning = false;
 
+        // cortar spawns pendientes
+        if (spawnRoutineHandle != null)
+            StopCoroutine(spawnRoutineHandle);
+
+        // cortar slasher y restaurar tiempos
+        if (player != null)
+            player.ForceStopSlasherMode();
+
+        // cortar shake si tenés continuo (por seguridad)
+        if (camShake != null)
+            camShake.StopContinuousShake();
+
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+
         if (audioSource && gameOverClip)
             audioSource.PlayOneShot(gameOverClip);
 
-        gameOverText.gameObject.SetActive(true);
+        if (gameOverText) gameOverText.gameObject.SetActive(true);
 
         int high = PlayerPrefs.GetInt("HighScore", 0);
-
         if (score > high)
         {
             PlayerPrefs.SetInt("HighScore", score);
             high = score;
         }
 
-        highScoreText.text = "RECORD: " + high;
-        highScoreText.gameObject.SetActive(true);
+        if (highScoreText)
+        {
+            highScoreText.text = "RECORD: " + high;
+            highScoreText.gameObject.SetActive(true);
+        }
 
-        pressEnterText.gameObject.SetActive(true);
-        StartCoroutine(BlinkPressEnter());
-        StartCoroutine(FadeRedOverlay());
+        if (pressEnterText)
+        {
+            pressEnterText.gameObject.SetActive(true);
+            StartCoroutine(BlinkPressEnter());
+        }
 
+        if (redOverlay != null)
+            StartCoroutine(FadeRedOverlay());
+
+        // freeze final
         Time.timeScale = 0f;
     }
 
     public void RestartGame()
     {
         Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     // ---------------------------------------------------------
-    // UI FUNCTIONS
+    // UI
     // ---------------------------------------------------------
     void UpdateScoreUI()
     {
+        if (!scoreText) return;
+
         scoreText.text = "SCORE " + score.ToString("000000");
 
         int milestone = (score / 1000) * 1000;
@@ -328,11 +461,14 @@ public class GameManager : MonoBehaviour
 
     void UpdateTimerUI()
     {
+        if (!timerText) return;
         timerText.text = "TIMER: " + Mathf.CeilToInt(remainingTime);
     }
 
     IEnumerator ScorePopupEffect()
     {
+        if (!scoreText) yield break;
+
         Vector3 originalScale = scoreText.transform.localScale;
         scoreText.transform.localScale = originalScale * 1.4f;
 
@@ -360,6 +496,8 @@ public class GameManager : MonoBehaviour
 
     IEnumerator FadeRedOverlay()
     {
+        if (redOverlay == null) yield break;
+
         Color c = redOverlay.color;
         float t = 0f;
 

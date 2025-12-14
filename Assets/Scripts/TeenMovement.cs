@@ -23,7 +23,7 @@ public class TeenMovement : MonoBehaviour
 
 
     Vector3 originalLocalPos;
-
+    Animator animator;
     bool isKnockback = false;
     Vector2 knockbackVelocity;
     bool canMove = true;   
@@ -32,7 +32,7 @@ public class TeenMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
-
+        animator = GetComponent<Animator>();
     }
 
     void OnEnable()
@@ -133,11 +133,17 @@ public class TeenMovement : MonoBehaviour
     {
         Vector2 dir = isKnockback ? knockbackVelocity : rb.linearVelocity;
 
+        // FLIP izquierda / derecha
         if (dir.x < -0.05f)
             sr.flipX = true;
         else if (dir.x > 0.05f)
             sr.flipX = false;
+
+        // MIRANDO ARRIBA
+        bool lookingUp = dir.y > 0.15f;
+        animator.SetBool("LookingUp", lookingUp);
     }
+
     void ApplyFearPulse()
     {
         if (GlobalSpeedMultiplier < 1f && canMove)

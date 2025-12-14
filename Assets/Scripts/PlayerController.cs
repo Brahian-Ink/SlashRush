@@ -53,7 +53,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Slasher Slow Motion")]
     public float slasherTimeScale = 0.6f;   // slow global
-    public float teenFearSlow = 0.5f;       // extra slow teens
+    public float teenFearSlow = 0.3f;       // extra slow teens
     public float buffRemaining;             // UI
     public float buffRemaining01;           // UI 0..1
 
@@ -276,6 +276,31 @@ public class PlayerController : MonoBehaviour
 
         buffRemaining = 0f;
         buffRemaining01 = 0f;
+    }
+    public void ForceStopSlasherMode()
+    {
+        // cortar buff
+        if (buffRoutineHandle != null)
+            StopCoroutine(buffRoutineHandle);
+
+        isBuffed = false;
+        isAttacking = false;
+
+        // restaurar valores base
+        moveSpeed = baseMoveSpeed;
+        attackDuration = baseAttackDuration;
+
+        // restaurar time scale
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+
+        // restaurar teens
+        TeenMovement.GlobalSpeedMultiplier = 1f;
+
+        // limpiar visuals
+        if (slashHitbox != null) slashHitbox.SetActive(false);
+        if (weapon != null) weapon.localRotation = Quaternion.identity;
+        if (bodySR != null) bodySR.color = Color.white;
     }
 
     // ---------------------------------------------------------
