@@ -76,6 +76,8 @@ public class GameManager : MonoBehaviour
     public TMP_Text gameOverText;
     public TMP_Text highScoreText;
     public TMP_Text pressEnterText;
+    public Button restartButton;
+    public Button menuButton;
 
     // ---------------------------------------------------------
     // FX
@@ -110,6 +112,17 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+        if (restartButton != null)
+        {
+            restartButton.gameObject.SetActive(false);
+            restartButton.onClick.AddListener(RestartGame);
+        }
+
+        if (menuButton != null)
+        {
+            menuButton.gameObject.SetActive(false);
+            menuButton.onClick.AddListener(BackToMenu);
+        }
         // Ocultar overlay rojo
         if (redOverlay != null)
         {
@@ -289,6 +302,12 @@ public class GameManager : MonoBehaviour
     // ---------------------------------------------------------
     public void RegisterKill()
     {
+        if (isGameOver) return;
+
+        #if UNITY_ANDROID || UNITY_IOS
+        Handheld.Vibrate();
+        #endif
+
         // COMBO
         if (comboTimer > 0f) comboCount++;
         else comboCount = 1;
@@ -313,8 +332,9 @@ public class GameManager : MonoBehaviour
 
         if (comboCount > 1 && audioSource && comboClip)
             audioSource.PlayOneShot(comboClip);
-
-        camShake?.Shake(0.08f, 0.06f);
+        
+        if (!isGameOver)
+            camShake?.Shake(0.08f, 0.06f);
 
         // POWER UP
         CheckPowerUp();
@@ -389,6 +409,11 @@ public class GameManager : MonoBehaviour
         isGameOver = true;
         waveRunning = false;
 
+        if (restartButton != null)
+            restartButton.gameObject.SetActive(true);
+
+        if (menuButton != null)
+            menuButton.gameObject.SetActive(true);
         // cortar spawns pendientes
         if (spawnRoutineHandle != null)
             StopCoroutine(spawnRoutineHandle);
@@ -440,6 +465,19 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
         Time.fixedDeltaTime = 0.02f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+    public void BackToMenu()
+    {
+        Time.timeScale = 1f;
+        Time.fixedDeltaTime = 0.02f;
+
+        if (camShake != null)
+        {
+            camShake.StopAllShake();
+            camShake.SetEnabled(true);
+        }
+
+        SceneManager.LoadScene("Menu");
     }
 
     // ---------------------------------------------------------

@@ -4,13 +4,13 @@ public class CameraShake : MonoBehaviour
 {
     Vector3 originalPos;
 
-    // Shake por impacto
     float shakeTimer;
     float shakeIntensity;
 
-    // Shake continuo (PowerUp)
     bool continuousShake = false;
     float continuousIntensity = 0f;
+
+    bool shakeEnabled = true;
 
     void Awake()
     {
@@ -19,25 +19,25 @@ public class CameraShake : MonoBehaviour
 
     void Update()
     {
-        // -----------------------------------------
-        // SHAKE CONTINUO (POWER UP)
-        // -----------------------------------------
+        if (!shakeEnabled)
+        {
+            transform.localPosition = originalPos;
+            return;
+        }
+
         if (continuousShake)
         {
             transform.localPosition = originalPos +
-                (Vector3)(Random.insideUnitCircle * continuousIntensity);
-            return; 
+                (Vector3)Random.insideUnitCircle * continuousIntensity;
+            return;
         }
 
-        // -----------------------------------------
-        // SHAKE CORTO POR IMPACTO
-        // -----------------------------------------
         if (shakeTimer > 0f)
         {
-            shakeTimer -= Time.deltaTime;
+            shakeTimer -= Time.unscaledDeltaTime;
 
             transform.localPosition = originalPos +
-                (Vector3)(Random.insideUnitCircle * shakeIntensity);
+                (Vector3)Random.insideUnitCircle * shakeIntensity;
         }
         else
         {
@@ -47,12 +47,16 @@ public class CameraShake : MonoBehaviour
 
     public void Shake(float duration, float intensity)
     {
+        if (!shakeEnabled) return;
+
         shakeTimer = duration;
         shakeIntensity = intensity;
     }
 
     public void StartContinuousShake(float intensity)
     {
+        if (!shakeEnabled) return;
+
         continuousShake = true;
         continuousIntensity = intensity;
     }
@@ -61,5 +65,22 @@ public class CameraShake : MonoBehaviour
     {
         continuousShake = false;
         transform.localPosition = originalPos;
+    }
+
+    public void StopAllShake()
+    {
+        shakeTimer = 0f;
+        shakeIntensity = 0f;
+        continuousShake = false;
+        continuousIntensity = 0f;
+        transform.localPosition = originalPos;
+    }
+
+    public void SetEnabled(bool enabled)
+    {
+        shakeEnabled = enabled;
+
+        if (!shakeEnabled)
+            StopAllShake();
     }
 }

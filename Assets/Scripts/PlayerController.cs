@@ -34,6 +34,13 @@ public class PlayerController : MonoBehaviour
     public float attackDuration = 0.12f;
     public float slashAngle = 80f;
 
+
+    [Header("Touch Movement")]
+    public float touchDeadZone = 0.15f;
+
+    bool isTouching = false;
+    Vector2 touchStart;
+
     // ---------------------------------------------------------
     // POWER-UP (SLASHER MODE)
     // ---------------------------------------------------------
@@ -103,17 +110,48 @@ public class PlayerController : MonoBehaviour
     // ---------------------------------------------------------
     void HandleMovementInput()
     {
-        if (!isAttacking)
+        // PC
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+
+        Vector2 pcInput = new Vector2(h, v);
+
+        // TOUCH
+        Vector2 touchInput = Vector2.zero;
+
+        if (Input.touchCount > 0)
         {
-            movement.x = Input.GetAxisRaw("Horizontal");
-            movement.y = Input.GetAxisRaw("Vertical");
-            movement = movement.normalized;
+            Touch t = Input.GetTouch(0);
+
+            if (t.phase == TouchPhase.Began)
+            {
+                isTouching = true;
+                touchStart = cam.ScreenToWorldPoint(t.position);
+            }
+            else if (t.phase == TouchPhase.Moved && isTouching)
+            {
+                Vector2 now = cam.ScreenToWorldPoint(t.position);
+                Vector2 delta = now - touchStart;
+
+                if (delta.magnitude > touchDeadZone)
+                    touchInput = delta.normalized;
+            }
+            else if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
+            {
+                isTouching = false;
+            }
         }
+
+        // prioridad: touch > teclado
+        if (touchInput != Vector2.zero)
+            movement = touchInput;
         else
-        {
+            movement = pcInput.normalized;
+
+        if (isAttacking)
             movement = Vector2.zero;
-        }
     }
+
 
     void HandleMouseLook()
     {
@@ -214,6 +252,10 @@ public class PlayerController : MonoBehaviour
         if (slashHitbox != null) slashHitbox.SetActive(false);
         if (weapon != null) weapon.localRotation = Quaternion.identity;
         isAttacking = false;
+
+        #if UNITY_ANDROID || UNITY_IOS
+        Handheld.Vibrate();
+        #endif
 
         if (buffRoutineHandle != null)
             StopCoroutine(buffRoutineHandle);

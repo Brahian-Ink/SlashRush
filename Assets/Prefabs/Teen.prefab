@@ -45,13 +45,13 @@ AudioSource:
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 0}
   m_PlayOnAwake: 0
-  m_Volume: 0.587
+  m_Volume: 1
   m_Pitch: 1
   Loop: 0
   Mute: 0
   Spatialize: 0
   SpatializePostEffects: 0
-  Priority: 128
+  Priority: 98
   DopplerLevel: 1
   MinDistance: 1
   MaxDistance: 500
@@ -266,7 +266,7 @@ MonoBehaviour:
   - {fileID: 3498234029800994571, guid: 7ded516bea6ecdd4eb60b120197e12b5, type: 3}
   - {fileID: 7286312576985616787, guid: 3d604a7bf28c47a4aba38d03d92f5ed4, type: 3}
   audioSource: {fileID: 2713055645660683668}
-  hitClip: {fileID: 8300000, guid: 2f1c882a7b73c364f84de0bf7f0786c8, type: 3}
+  hitClip: {fileID: 8300000, guid: f2955abbc82454e4a9b5b66d990465de, type: 3}
 --- !u!50 &3324013870222779790
 Rigidbody2D:
   serializedVersion: 5
@@ -347,5 +347,6 @@ MonoBehaviour:
   minChangeDirTime: 1
   maxChangeDirTime: 3
   knockbackDrag: 1
-  fearShakeIntensity: 0.02
   fearPulseSpeed: 12
+  fearMinAlpha: 0.6
+  fearMaxAlpha: 1
